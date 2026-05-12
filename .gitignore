@@ -6,3 +6,7 @@ build/
 *.xcworkspace/
 Package.resolved
 FullBatteryAlert.xcodeproj/
+fastlane/certs/
+fastlane/profiles/
+fastlane/report.xml
+fastlane/README.md

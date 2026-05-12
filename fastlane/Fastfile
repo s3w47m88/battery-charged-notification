@@ -50,8 +50,92 @@ platform :mac do
     end
   end
 
+  desc "Create Mac Installer Distribution cert (needed for .pkg signing on macOS app-store export)"
+  lane :installer_cert do
+    require 'spaceship'
+    require 'openssl'
+    require 'base64'
+    token = Spaceship::ConnectAPI::Token.create(
+      key_id: "XG3FW9LT9Q",
+      issuer_id: "178bab61-1c45-4f62-9525-55f8ed15a98d",
+      filepath: File.expand_path("~/.appstoreconnect/private_keys/AuthKey_XG3FW9LT9Q.p8")
+    )
+    Spaceship::ConnectAPI.token = token
+
+    cert_type = "MAC_INSTALLER_DISTRIBUTION"
+    existing = Spaceship::ConnectAPI::Certificate.all.select { |c| c.certificate_type == cert_type }
+    if existing.any?
+      UI.success("Mac Installer Distribution cert already exists: #{existing.first.id}")
+      cert = existing.first
+    else
+      UI.message("Generating CSR + Mac Installer Distribution cert...")
+      key = OpenSSL::PKey::RSA.new(2048)
+      csr = OpenSSL::X509::Request.new
+      csr.version = 0
+      csr.subject = OpenSSL::X509::Name.new([["CN", "Mac Installer Distribution", OpenSSL::ASN1::UTF8STRING]])
+      csr.public_key = key.public_key
+      csr.sign(key, OpenSSL::Digest::SHA256.new)
+
+      cert = Spaceship::ConnectAPI::Certificate.create(
+        certificate_type: cert_type,
+        csr_content: csr.to_pem
+      )
+
+      # Save private key + cert as p12, import to keychain
+      certs_dir = File.expand_path("fastlane/certs")
+      FileUtils.mkdir_p(certs_dir)
+      key_path = "#{certs_dir}/#{cert.id}.key"
+      cer_path = "#{certs_dir}/#{cert.id}.cer"
+      p12_path = "#{certs_dir}/#{cert.id}.p12"
+      File.write(key_path, key.to_pem)
+      File.binwrite(cer_path, Base64.decode64(cert.certificate_content))
+
+      x509 = OpenSSL::X509::Certificate.new(File.binread(cer_path))
+      p12 = OpenSSL::PKCS12.create("", "Mac Installer Distribution", key, x509)
+      File.binwrite(p12_path, p12.to_der)
+
+      sh("security import #{p12_path.shellescape} -P '' -A -t cert -f pkcs12 -k #{File.expand_path('~/Library/Keychains/login.keychain-db').shellescape}")
+      UI.success("Created Mac Installer Distribution cert: #{cert.id}")
+    end
+  end
+
+  desc "Create Apple Distribution cert + App Store provisioning profile"
+  lane :signing do
+    api_key = API_KEY.call
+    get_certificates(
+      api_key: api_key,
+      development: false,
+      platform: "macos",
+      generate_apple_certs: true,
+      output_path: "fastlane/certs"
+    )
+    get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: "com.spencerhill.fullbatteryalert",
+      platform: "macos",
+      developer_id: false,
+      output_path: "fastlane/profiles"
+    )
+  end
+
   desc "Build and upload to TestFlight"
   lane :beta do
+    api_key = API_KEY.call
+    get_certificates(
+      api_key: api_key,
+      development: false,
+      platform: "macos",
+      generate_apple_certs: true,
+      output_path: "fastlane/certs"
+    )
+    profile = get_provisioning_profile(
+      api_key: api_key,
+      app_identifier: "com.spencerhill.fullbatteryalert",
+      platform: "macos",
+      developer_id: false,
+      output_path: "fastlane/profiles"
+    )
+    profile_name = lane_context[SharedValues::SIGH_NAME] || ENV["sigh_com.spencerhill.fullbatteryalert_macos"]
     build_mac_app(
       project: "FullBatteryAlert.xcodeproj",
       scheme: "FullBatteryAlert",
@@ -59,14 +143,14 @@ platform :mac do
       export_method: "app-store",
       export_options: {
         provisioningProfiles: {
-          "com.spencerhill.fullbatteryalert" => "match AppStore com.spencerhill.fullbatteryalert"
+          "com.spencerhill.fullbatteryalert" => profile_name
         }
       },
       output_directory: "build/fastlane",
       output_name: "MacOS Fully Battery Alert"
     )
     upload_to_testflight(
-      api_key: API_KEY.call,
+      api_key: api_key,
       pkg: "build/fastlane/MacOS Fully Battery Alert.pkg",
       skip_waiting_for_build_processing: true
     )
