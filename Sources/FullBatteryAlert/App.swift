@@ -80,45 +80,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
             .applying(.init(scale: .medium))
-        guard let base = NSImage(systemSymbolName: "battery.\(bucket)percent", accessibilityDescription: "Battery \(pct)%")?
-            .withSymbolConfiguration(config) else { return }
-
-        let final: NSImage
-        if battery.isCharging || battery.isPluggedIn {
-            final = composeBatteryWithBolt(base: base) ?? base
-        } else {
-            final = base
-        }
-        final.isTemplate = true
-        button.image = final
+        let suffix = (battery.isCharging || battery.isPluggedIn) ? ".bolt" : ""
+        let primaryName = "battery.\(bucket)percent\(suffix)"
+        let img = NSImage(systemSymbolName: primaryName, accessibilityDescription: "Battery \(pct)%")?
+            .withSymbolConfiguration(config)
+            ?? NSImage(systemSymbolName: "battery.\(bucket)percent", accessibilityDescription: nil)?
+            .withSymbolConfiguration(config)
+        img?.isTemplate = true
+        button.image = img
         button.imagePosition = .imageOnly
         button.imageScaling = .scaleNone
         button.toolTip = "\(pct)%" + (battery.isCharging ? " (charging)" : battery.isPluggedIn ? " (plugged in)" : "")
-    }
-
-    private func composeBatteryWithBolt(base: NSImage) -> NSImage? {
-        let boltConfig = NSImage.SymbolConfiguration(pointSize: 9, weight: .bold)
-        guard let bolt = NSImage(systemSymbolName: "bolt.fill", accessibilityDescription: nil)?
-            .withSymbolConfiguration(boltConfig) else { return nil }
-        let size = base.size
-        let composed = NSImage(size: size)
-        composed.lockFocus()
-        base.draw(at: .zero, from: NSRect(origin: .zero, size: size), operation: .sourceOver, fraction: 1.0)
-        // Knock out a notch behind the bolt so it stays legible against the fill bar
-        let boltSize = bolt.size
-        let boltOrigin = NSPoint(
-            x: (size.width - boltSize.width) / 2.0,
-            y: (size.height - boltSize.height) / 2.0 - 0.5
-        )
-        NSColor.clear.setFill()
-        let knockout = NSRect(x: boltOrigin.x - 1, y: boltOrigin.y - 1,
-                              width: boltSize.width + 2, height: boltSize.height + 2)
-        NSGraphicsContext.current?.compositingOperation = .destinationOut
-        knockout.fill()
-        NSGraphicsContext.current?.compositingOperation = .sourceOver
-        bolt.draw(at: boltOrigin, from: NSRect(origin: .zero, size: boltSize), operation: .sourceOver, fraction: 1.0)
-        composed.unlockFocus()
-        return composed
     }
 
     @objc private func toggleSettings(_ sender: Any?) {

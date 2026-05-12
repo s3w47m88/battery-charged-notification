@@ -6,6 +6,11 @@ final class BatteryMonitor: ObservableObject {
     @Published private(set) var percentage: Int = 0
     @Published private(set) var isCharging: Bool = false
     @Published private(set) var isPluggedIn: Bool = false
+    /// Minutes to full charge while charging, or nil if unknown/discharging.
+    @Published private(set) var timeToFullMinutes: Int? = nil
+    /// Minutes to empty while on battery, or nil if unknown/charging.
+    @Published private(set) var timeToEmptyMinutes: Int? = nil
+    @Published private(set) var isLowPowerMode: Bool = ProcessInfo.processInfo.isLowPowerModeEnabled
 
     private var runLoopSource: CFRunLoopSource?
     var onChange: ((Int, Bool, Bool) -> Void)?
@@ -13,6 +18,12 @@ final class BatteryMonitor: ObservableObject {
     init() {
         refresh()
         startObserving()
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name.NSProcessInfoPowerStateDidChange,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.isLowPowerMode = ProcessInfo.processInfo.isLowPowerModeEnabled
+        }
     }
 
     deinit {
@@ -47,6 +58,8 @@ final class BatteryMonitor: ObservableObject {
             let charging = info[kIOPSIsChargingKey] as? Bool ?? false
             let pct = max > 0 ? Int(round(Double(current) / Double(max) * 100.0)) : 0
             let plugged = (state == kIOPSACPowerValue)
+            let toFullRaw = info[kIOPSTimeToFullChargeKey] as? Int ?? -1
+            let toEmptyRaw = info[kIOPSTimeToEmptyKey] as? Int ?? -1
 
             let oldPct = percentage
             let oldCharging = isCharging
@@ -54,6 +67,8 @@ final class BatteryMonitor: ObservableObject {
             percentage = pct
             isCharging = charging
             isPluggedIn = plugged
+            timeToFullMinutes = (charging && toFullRaw > 0) ? toFullRaw : nil
+            timeToEmptyMinutes = (!plugged && toEmptyRaw > 0) ? toEmptyRaw : nil
 
             if pct != oldPct || charging != oldCharging || plugged != oldPlugged {
                 onChange?(pct, charging, plugged)

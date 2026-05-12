@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct SettingsView: View {
     @ObservedObject var settings: AppSettings
@@ -7,22 +8,51 @@ struct SettingsView: View {
     @State private var newThreshold: Double = 90
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Image(systemName: batteryIcon)
-                    .font(.title2)
-                Text("\(battery.percentage)%")
-                    .font(.title2.weight(.semibold))
+        VStack(alignment: .leading, spacing: 12) {
+            // Native-style battery header
+            HStack(alignment: .firstTextBaseline) {
+                Text("Battery").font(.headline)
                 Spacer()
-                Text(statusText)
-                    .font(.caption)
+                Text("\(battery.percentage)%")
+                    .font(.headline.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
 
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Power Source: \(powerSourceText)")
+                if let timeText = timeRemainingText {
+                    Text(timeText).foregroundStyle(.secondary)
+                }
+            }
+            .font(.callout)
+
             Divider()
 
-            Text("Alert thresholds")
-                .font(.headline)
+            Text("Energy Mode").font(.subheadline.weight(.semibold))
+            HStack(spacing: 8) {
+                Image(systemName: battery.isLowPowerMode ? "battery.25percent" : "battery.100percent")
+                    .foregroundStyle(battery.isLowPowerMode ? .yellow : .secondary)
+                Text(battery.isLowPowerMode ? "Low Power" : "Automatic")
+                Spacer()
+                Button("Battery Settings…") {
+                    if let url = URL(string: "x-apple.systempreferences:com.apple.preference.battery") {
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                .buttonStyle(.link)
+                .font(.callout)
+            }
+            .font(.callout)
+
+            Divider()
+
+            Text("No Apps Using Significant Energy")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+
+            Divider()
+
+            Text("Alert Thresholds").font(.subheadline.weight(.semibold))
 
             if settings.thresholds.isEmpty {
                 Text("No thresholds set.")
@@ -50,40 +80,45 @@ struct SettingsView: View {
                 }
             }
 
-            Divider()
-
             Toggle("Play sound with alert", isOn: $settings.playSound)
+                .font(.callout)
 
             Divider()
 
             HStack {
                 Button("Send test alert") { onTestAlert() }
                 Spacer()
-                Button("Quit") {
-                    NSApplication.shared.terminate(nil)
-                }
-                .keyboardShortcut("q")
+                Button("Quit") { NSApplication.shared.terminate(nil) }
+                    .keyboardShortcut("q")
             }
         }
         .padding(16)
-        .frame(width: 320)
+        .frame(width: 340)
     }
 
-    private var batteryIcon: String {
-        if battery.isCharging { return "battery.100.bolt" }
-        switch battery.percentage {
-        case 90...: return "battery.100"
-        case 65...: return "battery.75"
-        case 40...: return "battery.50"
-        case 15...: return "battery.25"
-        default: return "battery.0"
+    private var powerSourceText: String {
+        if battery.isPluggedIn { return battery.isCharging ? "Power Adapter" : "Power Adapter (not charging)" }
+        return "Battery"
+    }
+
+    private var timeRemainingText: String? {
+        if let m = battery.timeToFullMinutes, battery.isCharging {
+            return "\(formatMinutes(m)) until fully charged"
         }
+        if let m = battery.timeToEmptyMinutes, !battery.isPluggedIn {
+            return "\(formatMinutes(m)) remaining"
+        }
+        if battery.isPluggedIn && !battery.isCharging && battery.percentage >= 100 {
+            return "Fully charged"
+        }
+        return nil
     }
 
-    private var statusText: String {
-        if battery.isCharging { return "Charging" }
-        if battery.isPluggedIn { return "Plugged in" }
-        return "On battery"
+    private func formatMinutes(_ m: Int) -> String {
+        let h = m / 60, r = m % 60
+        if h == 0 { return "\(r)m" }
+        if r == 0 { return "\(h)h" }
+        return "\(h)h \(r)m"
     }
 }
 
@@ -97,12 +132,8 @@ private struct ThresholdRow: View {
             Text("\(Int(value))%")
                 .frame(width: 44, alignment: .trailing)
                 .monospacedDigit()
-            Button {
-                onRemove()
-            } label: {
-                Image(systemName: "minus.circle")
-            }
-            .buttonStyle(.borderless)
+            Button { onRemove() } label: { Image(systemName: "minus.circle") }
+                .buttonStyle(.borderless)
         }
     }
 }
