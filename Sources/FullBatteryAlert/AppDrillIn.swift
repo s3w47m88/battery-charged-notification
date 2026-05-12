@@ -85,15 +85,21 @@ enum AppDrillIn {
         if !trusted {
             return .hint(message: hint)
         }
-        let src = CGEventSource(stateID: .combinedSessionState)
-        guard let down = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: true),
-              let up = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: false) else {
-            return .hint(message: hint)
+        // `activate()` is fire-and-forget — the focus change is async. Posting
+        // the keystroke immediately sends it to whatever app is currently
+        // frontmost (often ours). Delay long enough for the target app to
+        // become frontmost.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            let src = CGEventSource(stateID: .combinedSessionState)
+            guard let down = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: true),
+                  let up = CGEvent(keyboardEventSource: src, virtualKey: keyCode, keyDown: false) else {
+                return
+            }
+            down.flags = flags
+            up.flags = flags
+            down.post(tap: .cghidEventTap)
+            up.post(tap: .cghidEventTap)
         }
-        down.flags = flags
-        up.flags = flags
-        down.post(tap: .cghidEventTap)
-        up.post(tap: .cghidEventTap)
         return .opened
     }
 

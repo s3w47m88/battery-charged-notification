@@ -48,7 +48,7 @@ struct SettingsView: View {
 
             Divider()
 
-            EnergyListView(monitor: energy, onSelect: handleSelect)
+            EnergyListView(monitor: energy, onAction: handleAction)
             if let hint = hintMessage {
                 Text(hint)
                     .font(.caption)
@@ -138,7 +138,18 @@ struct SettingsView: View {
         return nil
     }
 
-    private func handleSelect(_ app: AppEnergy) {
+    private func handleAction(_ app: AppEnergy, _ action: EnergyRowAction) {
+        switch action {
+        case .drillIn:
+            drillIn(app)
+        case .help:
+            openHelpSearch(for: app)
+        case .forceQuit:
+            confirmAndForceQuit(app)
+        }
+    }
+
+    private func drillIn(_ app: AppEnergy) {
         switch AppDrillIn.openResourceMonitor(for: app) {
         case .opened:
             hintMessage = nil
@@ -146,6 +157,44 @@ struct SettingsView: View {
             hintMessage = message
             DispatchQueue.main.asyncAfter(deadline: .now() + 4.0) {
                 if hintMessage == message { hintMessage = nil }
+            }
+        }
+    }
+
+    private func openHelpSearch(for app: AppEnergy) {
+        let query = "macOS \(app.displayName) process"
+        var components = URLComponents(string: "https://www.google.com/search")!
+        components.queryItems = [URLQueryItem(name: "q", value: query)]
+        if let url = components.url {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func confirmAndForceQuit(_ app: AppEnergy) {
+        let alert = NSAlert()
+        alert.messageText = "Force quit \(app.displayName)?"
+        alert.informativeText = "Any unsaved changes in this app will be lost."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Force Quit")
+        alert.addButton(withTitle: "Cancel")
+        if let popoverWindow = NSApp.keyWindow, popoverWindow.isVisible {
+            // Bring the popover's window forward so the alert anchors visibly.
+            popoverWindow.makeKeyAndOrderFront(nil)
+        }
+        let response = alert.runModal()
+        guard response == .alertFirstButtonReturn else { return }
+        forceQuit(app)
+    }
+
+    private func forceQuit(_ app: AppEnergy) {
+        // Prefer NSRunningApplication.terminate() for user apps (sends Cmd-Q
+        // gracefully); fall back to kill() for system processes that aren't
+        // backed by an NSRunningApplication.
+        for pid in app.pids {
+            if let running = NSRunningApplication(processIdentifier: pid) {
+                running.terminate()
+            } else {
+                kill(pid, SIGTERM)
             }
         }
     }
