@@ -3,18 +3,17 @@ import Combine
 
 final class AppSettings: ObservableObject {
     private let defaults = UserDefaults.standard
-    private let keyThresholds = "thresholds"
-    private let keyPlaySound = "playSound"
-    private let keyLaunchAtLogin = "launchAtLogin"
 
     @Published var thresholds: [Int] {
-        didSet {
-            defaults.set(thresholds, forKey: keyThresholds)
-        }
+        didSet { defaults.set(thresholds, forKey: "thresholds") }
     }
 
     @Published var playSound: Bool {
-        didSet { defaults.set(playSound, forKey: keyPlaySound) }
+        didSet { defaults.set(playSound, forKey: "playSound") }
+    }
+
+    @Published var showPercentageInIcon: Bool {
+        didSet { defaults.set(showPercentageInIcon, forKey: "showPercentageInIcon") }
     }
 
     init() {
@@ -23,11 +22,8 @@ final class AppSettings: ObservableObject {
         } else {
             self.thresholds = [95, 100]
         }
-        if UserDefaults.standard.object(forKey: "playSound") != nil {
-            self.playSound = UserDefaults.standard.bool(forKey: "playSound")
-        } else {
-            self.playSound = true
-        }
+        self.playSound = (UserDefaults.standard.object(forKey: "playSound") as? Bool) ?? true
+        self.showPercentageInIcon = (UserDefaults.standard.object(forKey: "showPercentageInIcon") as? Bool) ?? true
     }
 
     func setThreshold(at index: Int, to value: Int) {

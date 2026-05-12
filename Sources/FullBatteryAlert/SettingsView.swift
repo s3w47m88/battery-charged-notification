@@ -83,6 +83,14 @@ struct SettingsView: View {
             Toggle("Play sound with alert", isOn: $settings.playSound)
                 .font(.callout)
 
+            Toggle("Show percentage inside the icon", isOn: $settings.showPercentageInIcon)
+                .font(.callout)
+
+            Text("Tip: ⌘-drag this icon to reposition. To hide the system battery indicator, use System Settings → Control Center → Battery (macOS no longer allows apps to toggle it).")
+                .font(.caption)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+
             Divider()
 
             HStack {
