@@ -9,6 +9,18 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(thresholds, forKey: "thresholds") }
     }
 
+    @Published var lowThresholds: [Int] {
+        didSet { defaults.set(lowThresholds, forKey: "lowThresholds") }
+    }
+
+    @Published var alertOnPowerCut: Bool {
+        didSet { defaults.set(alertOnPowerCut, forKey: "alertOnPowerCut") }
+    }
+
+    @Published var alertOnPowerRestored: Bool {
+        didSet { defaults.set(alertOnPowerRestored, forKey: "alertOnPowerRestored") }
+    }
+
     @Published var playSound: Bool {
         didSet { defaults.set(playSound, forKey: "playSound") }
     }
@@ -30,6 +42,13 @@ final class AppSettings: ObservableObject {
         } else {
             self.thresholds = [95, 100]
         }
+        if let arr = UserDefaults.standard.array(forKey: "lowThresholds") as? [Int] {
+            self.lowThresholds = arr
+        } else {
+            self.lowThresholds = [20]
+        }
+        self.alertOnPowerCut = (UserDefaults.standard.object(forKey: "alertOnPowerCut") as? Bool) ?? false
+        self.alertOnPowerRestored = (UserDefaults.standard.object(forKey: "alertOnPowerRestored") as? Bool) ?? false
         self.playSound = (UserDefaults.standard.object(forKey: "playSound") as? Bool) ?? true
         self.showPercentageInIcon = (UserDefaults.standard.object(forKey: "showPercentageInIcon") as? Bool) ?? true
         self.openOnStartup = (UserDefaults.standard.object(forKey: "openOnStartup") as? Bool) ?? true
@@ -71,5 +90,25 @@ final class AppSettings: ObservableObject {
         var copy = thresholds
         copy.remove(at: index)
         thresholds = copy
+    }
+
+    func setLowThreshold(at index: Int, to value: Int) {
+        guard index >= 0 && index < lowThresholds.count else { return }
+        var copy = lowThresholds
+        copy[index] = min(100, max(1, value))
+        lowThresholds = copy
+    }
+
+    func addLowThreshold(_ value: Int) {
+        let v = min(100, max(1, value))
+        guard !lowThresholds.contains(v) else { return }
+        lowThresholds = (lowThresholds + [v]).sorted()
+    }
+
+    func removeLowThreshold(at index: Int) {
+        guard index >= 0 && index < lowThresholds.count else { return }
+        var copy = lowThresholds
+        copy.remove(at: index)
+        lowThresholds = copy
     }
 }

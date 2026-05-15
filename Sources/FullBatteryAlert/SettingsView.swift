@@ -7,6 +7,7 @@ struct SettingsView: View {
     @ObservedObject var energy: EnergyMonitor
     var onTestAlert: () -> Void = {}
     @State private var newThreshold: Double = 90
+    @State private var newLowThreshold: Double = 20
     @State private var hintMessage: String?
 
     var body: some View {
@@ -90,13 +91,15 @@ struct SettingsView: View {
 
             Divider()
 
-            Text("Alert Thresholds").font(.subheadline.weight(.semibold))
+            Text("Alert Me When:").font(.subheadline.weight(.semibold))
 
-            if settings.thresholds.isEmpty {
-                Text("No thresholds set.")
-                    .foregroundStyle(.secondary)
-                    .font(.callout)
-            } else {
+            Toggle("Power supply is cut", isOn: $settings.alertOnPowerCut)
+                .font(.callout)
+            Toggle("Power supply is restored", isOn: $settings.alertOnPowerRestored)
+                .font(.callout)
+
+            Text("Charge level at or above").font(.callout).foregroundStyle(.secondary)
+            if !settings.thresholds.isEmpty {
                 ForEach(Array(settings.thresholds.enumerated()), id: \.offset) { idx, value in
                     ThresholdRow(
                         value: Binding(
@@ -107,7 +110,6 @@ struct SettingsView: View {
                     )
                 }
             }
-
             HStack {
                 Slider(value: $newThreshold, in: 1...100, step: 1)
                 Text("\(Int(newThreshold))%")
@@ -115,6 +117,28 @@ struct SettingsView: View {
                     .monospacedDigit()
                 Button("Add") {
                     settings.addThreshold(Int(newThreshold))
+                }
+            }
+
+            Text("Charge level at or below").font(.callout).foregroundStyle(.secondary)
+            if !settings.lowThresholds.isEmpty {
+                ForEach(Array(settings.lowThresholds.enumerated()), id: \.offset) { idx, value in
+                    ThresholdRow(
+                        value: Binding(
+                            get: { Double(value) },
+                            set: { settings.setLowThreshold(at: idx, to: Int($0)) }
+                        ),
+                        onRemove: { settings.removeLowThreshold(at: idx) }
+                    )
+                }
+            }
+            HStack {
+                Slider(value: $newLowThreshold, in: 1...100, step: 1)
+                Text("\(Int(newLowThreshold))%")
+                    .frame(width: 44, alignment: .trailing)
+                    .monospacedDigit()
+                Button("Add") {
+                    settings.addLowThreshold(Int(newLowThreshold))
                 }
             }
 

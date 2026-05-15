@@ -45,8 +45,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             AlertManager.shared.handleUpdate(
                 percentage: pct, isCharging: charging, isPluggedIn: plugged,
                 settings: self.settings,
-                onFire: { threshold in
-                    self.presentAlertPopover(threshold: threshold, percentage: pct)
+                onFire: { event in
+                    self.presentAlertPopover(event: event, percentage: pct)
                 }
             )
         }
@@ -73,7 +73,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 settings: settings,
                 battery: battery,
                 energy: energy,
-                onTestAlert: { [weak self] in self?.presentAlertPopover(threshold: 100, percentage: self?.battery.percentage ?? 100) }
+                onTestAlert: { [weak self] in self?.presentAlertPopover(event: .highThreshold(100), percentage: self?.battery.percentage ?? 100) }
             )
         )
 
@@ -110,16 +110,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    func presentAlertPopover(threshold: Int, percentage: Int) {
+    func presentAlertPopover(event: AlertEvent, percentage: Int) {
         guard let button = statusItem.button else { return }
         let title: String
         let body: String
-        if threshold >= 100 {
-            title = "Battery Fully Charged"
-            body = "Your Mac is at \(percentage)%. Unplug to preserve battery health."
-        } else {
+        switch event {
+        case .highThreshold(let threshold):
+            if threshold >= 100 {
+                title = "Battery Fully Charged"
+                body = "Your Mac is at \(percentage)%. Unplug to preserve battery health."
+            } else {
+                title = "Battery at \(threshold)%"
+                body = "Charging is approaching full (\(percentage)%)."
+            }
+        case .lowThreshold(let threshold):
             title = "Battery at \(threshold)%"
-            body = "Charging is approaching full (\(percentage)%)."
+            body = "Charge level is low (\(percentage)%). Plug in to keep working."
+        case .powerCut:
+            title = "Power Supply Cut"
+            body = "Your Mac is now running on battery (\(percentage)%)."
+        case .powerRestored:
+            title = "Power Supply Restored"
+            body = "Your Mac is plugged in again (\(percentage)%)."
         }
         alertPopover.contentViewController = NSHostingController(
             rootView: AlertBubbleView(title: title, message: body, onDismiss: { [weak self] in
